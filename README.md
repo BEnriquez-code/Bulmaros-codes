@@ -1,2 +1,3 @@
 # Bulmaros-codes
-Code repository for Bulmaro Enriquez 
+Code repository for Bulmaro Enriquez. 
+For public use.
