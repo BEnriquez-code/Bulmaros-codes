@@ -38,10 +38,20 @@ enemies = []
 spawn_timer = 0
 
 # Flying Enemy
+fly_enemyImg = pygame.image.load("pixil-frame-0 (flying).png")
 fly_enemies = []
 fly_spawn_timer = 0
 fly_shoot_cooldown = 1000
 last_fly_shot_time = 0
+flying_kills = 0
+
+# Boss
+bossImg = pygame.image.load("ailenpxl-drawing.png")
+boss = None
+boss_health = 20
+boss_bullets = []
+boss_shoot_cooldown = 800
+boss_spawn_threshold = 10
 
 # Player Bullet
 bulletImg = pygame.image.load("bullet.png")
@@ -83,7 +93,11 @@ def enemy(x, y):
     screen.blit(enemyImg, (x, y))
 
 def fly_enemy(x, y):
-    screen.blit(enemyImg, (x, y))
+    screen.blit(fly_enemyImg, (x, y))
+def draw_boss_health(boss):
+    if boss:
+        pygame.draw.rect(screen, (255,0,0), (boss["x"], boss["y"] - 20, 100, 10))
+        pygame.draw.rect(screen, (0,255,0), (boss["x"], boss["y"] - 20, int(100*(boss["health"]/ boss_health)), 10))
 
 def spawn_enemy():
     side = random.choice(["left", "right"])
@@ -116,7 +130,7 @@ def isPlayerCollision(enemyX, enemyY, playerX, playerY):
     distance = math.hypot(enemyX - playerX, enemyY - playerY)
     return distance < 40
 
-def add_explosion(x, y, enemtImg):
+def add_explosion(x, y, enemyImg, fly_enemyImg):
     frame = explosion_frames[0]
     rect = frame.get_rect()
     explosions.append({"x":x + enemyImg.get_width()//2 - rect.width//2, "y":y + enemyImg.get_height() //2 - rect.height//2, "frame": 0, "time": pygame.time.get_ticks()})
@@ -160,6 +174,65 @@ while running:
             if not flying_mode:
                 flying_mode = True
                 enemies.clear()  # Remove remaining ground enemies
+                
+        #Spawn boss after flying enemies
+        if flying_kills >= boss_spawn_threshold and boss is None:
+            boss = {
+                "x": 300,
+                "y": 50,
+                "health": boss_health,
+                "last_shot_time": 0,
+                "dx": 1.5}
+        #Boss behavoir
+        if boss:
+            screen.blit(bossImg, (boss["x"], boss["y"]))
+            draw_boss_health(boss)
+
+            if current_time - boss["last_shot_time"] > boss_shoot_cooldown:
+                dx = playerX - boss["x"]
+                dy = playerY - boss["y"]
+                dist = math.hypot(dx, dy)
+                if dist == 0:
+                    dist = 1
+                dx /= dist
+                dy /= dist
+                boss_bullets.append({"x": boss["x"], "y": boss["y"], "dx":dx, "dy":dy})
+                boss["last_shot_time"] = current_time
+                
+            #boss movement
+            boss["x"] += boss["dx"]
+            if boss["x"] > 700:
+                boss["x"] = 700
+                boss["dx"] = -1.5
+            if boss["x"] < 0:
+                boss["x"] = 0
+                boss["dx"] = 1.5
+
+            for bb in boss_bullets[:]:
+                bb["x"] += bb["dx"] *2
+                bb["y"] += bb["dy"] *2
+                screen.blit(enemy_bullet_img, (bb["x"], bb["y"]))
+                # remove if off screen
+                if bb["x"] < -50 or bb["x"] > 850 or bb["y"] < -50 or bb["y"] > 650:
+                    boss_bullets.remove(bb)
+
+                if bb["y"] >= 335:
+                    boss_bullets.remove(bb)
+                    continue
+                if math.hypot(bb["x"] - playerX, bb["y"] - playerY) < 30:
+                    game_over = True
+                    boss_bullets.remove(bb)
+                
+            for bullet in bullets[:]:
+                if math.hypot(bullet["x"] - boss["x"], bullet["y"] - boss["y"]) <40:
+                    bullets.remove(bullet)
+                    boss["health"] -= 1
+                    if boss["health"] <= 0:
+                        explosion_Sound = mixer.Sound("explosion.wav")
+                        explosion_Sound.play()
+                        add_explosion(boss["x"], boss["y"], bossImg)
+                        boss = None
+                        game_over = True
 
         # Spawn ground enemies if not in flying mode
         if not flying_mode:
@@ -168,8 +241,8 @@ while running:
                 spawn_enemy()
                 spawn_timer = 0
 
-        # Spawn flying enemies
-        if flying_mode:
+        # Spawn flying enemies(only if boss isn't active)
+        if flying_mode and boss is None:
             fly_spawn_timer += 1
             if fly_spawn_timer > 300:
                 x = random.randint(100, 700)
@@ -192,7 +265,7 @@ while running:
                 if isCollision(enemy_data["x"], enemy_data["y"], bullet["x"], bullet["y"]):
                     explosion_Sound = mixer.Sound("explosion.wav")
                     explosion_Sound.play()
-                    add_explosion(enemy_data["x"], enemy_data["y"], enemyImg)
+                    add_explosion(enemy_data["x"], enemy_data["y"], enemyImg, fly_enemyImg)
                     bullets.remove(bullet)
                     enemies.remove(enemy_data)
                     score_value += 1
@@ -221,10 +294,11 @@ while running:
                 if isCollision(fly["x"], fly["y"], bullet["x"], bullet["y"]):
                     explosion_Sound = mixer.Sound("explosion.wav")
                     explosion_Sound.play()
-                    add_explosion(fly["x"], fly["y"], enemyImg)
+                    add_explosion(fly["x"], fly["y"], enemyImg, fly_enemyImg)
                     bullets.remove(bullet)
                     fly_enemies.remove(fly)
                     score_value += 2
+                    flying_kills += 1
                     break
 
         # Update player bullets
@@ -241,6 +315,9 @@ while running:
             eb["x"] += eb["dx"] * enemy_bullet_speed
             eb["y"] += eb["dy"] * enemy_bullet_speed
             screen.blit(enemy_bullet_img, (eb["x"], eb["y"]))
+            if (bullet["x"] < -50 or bullet["x"] > 850 or
+            bullet["y"] < -50 or bullet["y"] > 335):
+                bullets.remove(bullet)
 
             if math.hypot(eb["x"] - playerX, eb["y"] - playerY) < 30:
                 game_over = True
