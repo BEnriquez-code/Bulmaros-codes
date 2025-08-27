@@ -1,3 +1,4 @@
 # Bulmaros-codes
-Code repository for Bulmaro Enriquez. 
-For public use.
+Main use Python
+Studying C#, C++
+
