@@ -1,4 +1,3 @@
-# Bulmaros-codes
-Main use Python
-Studying C#, C++
+Bulmaro Enriquez -codes
 
+These are where I store my coding projects
